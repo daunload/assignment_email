@@ -1,0 +1,39 @@
+# .github/workflows/submit-assignments.yml
+
+name: Submit Assignment Report
+
+on:
+  push:
+    tags:
+      - '*'
+
+jobs:
+  run-assignment-checker:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Create .env file from secrets
+        run: |
+          echo DOMAIN_URL=${{ secrets.DOMAIN_URL }} >> .env
+          echo LOGIN_ID=${{ secrets.LOGIN_ID }} >> .env
+          echo LOGIN_PASSWORD=${{ secrets.LOGIN_PASSWORD }} >> .env
+          echo LOGIN_URL=${{ secrets.LOGIN_URL }} >> .env
+          echo SUBJECT_LIST_URL=${{ secrets.SUBJECT_LIST_URL }} >> .env
+          echo SUBJECT_TASK_LIST_URL=${{ secrets.SUBJECT_TASK_LIST_URL }} >> .env
+          echo EMAIL_USER=${{ secrets.EMAIL_USER }} >> .env
+          echo EMAIL_PASS=${{ secrets.EMAIL_PASS }} >> .env
+          echo EMAIL_SERVICE=${{ secrets.EMAIL_SERVICE }} >> .env
+
+      - name: Run assignment checker
+        run: npm run start
