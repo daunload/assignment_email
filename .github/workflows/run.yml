@@ -30,13 +30,8 @@ jobs:
           echo DOMAIN_URL=${{ secrets.DOMAIN_URL }} >> .env
           echo LOGIN_ID=${{ secrets.LOGIN_ID }} >> .env
           echo LOGIN_PASSWORD=${{ secrets.LOGIN_PASSWORD }} >> .env
-          echo LOGIN_URL=${{ secrets.LOGIN_URL }} >> .env
-          echo SUBJECT_LIST_URL=${{ secrets.SUBJECT_LIST_URL }} >> .env
-          echo SUBJECT_TASK_LIST_URL=${{ secrets.SUBJECT_TASK_LIST_URL }} >> .env
-          echo ONLINE_CLASS_LIST_URL=${{ secrets.ONLINE_CLASS_LIST_URL }} >> .env
           echo EMAIL_USER=${{ secrets.EMAIL_USER }} >> .env
           echo EMAIL_PASS="${{ secrets.EMAIL_PASS }}" >> .env
-          echo EMAIL_SERVICE=${{ secrets.EMAIL_SERVICE }} >> .env
 
       - name: Run assignment checker
         run: npm run start
