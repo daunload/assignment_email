@@ -3,6 +3,8 @@
 name: Submit Assignment Report
 
 on:
+  schedule:
+    - cron: '0 2,10 * * *'
   push:
     tags:
       - "*"
