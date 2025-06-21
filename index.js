@@ -11,33 +11,32 @@ const loginAndNavigate = async (page) => {
 	await Promise.all([
 		page.click('button[type="submit"]'),
 		page.waitForFunction(
-			(url) => location.pathname === url,
+			() => location.pathname === '/std/cmn/frame/Frame.do',
 			{ timeout: 30000 },
-			process.env.LOGIN_URL,
 		),
 	]);
 };
 
 /** 과목 리스트 요청 */
 const fetchSubjects = async (page) => {
-	return await page.evaluate(async (url) => {
-		const res = await fetch(url, {
+	return await page.evaluate(async () => {
+		const res = await fetch('/std/cmn/frame/YearhakgiAtnlcSbjectList.do', {
 			method: 'POST',
 			headers: { 'Content-Type': 'application/json;charset=UTF-8' },
 			body: JSON.stringify({}),
 			credentials: 'same-origin',
 		});
 		return res.json();
-	}, process.env.SUBJECT_LIST_URL);
+	});
 };
 
 /** 과제 리스트 요청 */
 const fetchAssignments = async (page, subjectList, year) => {
 	return await page.evaluate(
-		async (subjects, year, url) => {
+		async (subjects, year) => {
 			const results = await Promise.all(
 				subjects.map(async (subject) => {
-					const res = await fetch(url, {
+					const res = await fetch('/std/lis/evltn/TaskStdList.do', {
 						method: 'POST',
 						headers: {
 							'Content-Type': 'application/json;charset=UTF-8',
@@ -59,18 +58,17 @@ const fetchAssignments = async (page, subjectList, year) => {
 			return results.flat();
 		},
 		subjectList,
-		year,
-		process.env.SUBJECT_TASK_LIST_URL,
+		year
 	);
 };
 
 /** 인강 리스트 요청 */
 const fetchOnlineClassList = async (page, subjectList, year) => {
 	return await page.evaluate(
-		async (subjects, year, url) => {
+		async (subjects, year) => {
 			const results = await Promise.all(
 				subjects.map(async (subject) => {
-					const res = await fetch(url, {
+					const res = await fetch('/std/lis/evltn/SelectOnlineCntntsStdList.do', {
 						method: 'POST',
 						headers: {
 							'Content-Type': 'application/json;charset=UTF-8',
@@ -92,8 +90,7 @@ const fetchOnlineClassList = async (page, subjectList, year) => {
 			return results.flat();
 		},
 		subjectList,
-		year,
-		process.env.ONLINE_CLASS_LIST_URL,
+		year
 	);
 };
 
@@ -170,7 +167,7 @@ const formatHTML = (assignments, onelineClassList) => {
 const sendGmail = (to, subject, text) => {
 	const transporter = nodemailer.createTransport({
 		host: 'smtp.gmail.com',
-		service: process.env.EMAIL_SERVICE,
+		service: 'gmail',
 		port: 587,
 		secure: false,
 		auth: {
