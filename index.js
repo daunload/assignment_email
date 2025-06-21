@@ -64,6 +64,39 @@ const fetchAssignments = async (page, subjectList, year) => {
 	);
 };
 
+/** 인강 리스트 요청 */
+const fetchOnlineClassList = async (page, subjectList, year) => {
+	return await page.evaluate(
+		async (subjects, year, url) => {
+			const results = await Promise.all(
+				subjects.map(async (subject) => {
+					const res = await fetch(url, {
+						method: 'POST',
+						headers: {
+							'Content-Type': 'application/json;charset=UTF-8',
+						},
+						body: JSON.stringify({
+							selectSubj: subject.value,
+							selectYearhakgi: year,
+							selectChangeYn: 'Y',
+						}),
+						credentials: 'same-origin',
+					});
+					const data = await res.json();
+					return data.map((a) => ({
+						...a,
+						subjectName: subject.name,
+					}));
+				}),
+			);
+			return results.flat();
+		},
+		subjectList,
+		year,
+		process.env.ONLINE_CLASS_LIST_URL,
+	);
+};
+
 /** 남은 기한 */
 const getRemainingDays = (expireDate) => {
 	const expire = new Date(expireDate.replace(' ', 'T'));
@@ -76,28 +109,59 @@ const getRemainingDays = (expireDate) => {
 };
 
 const filterUnsubmittedAssignments = (assignments) => {
-	return assignments.filter((a) => {
-		return a.submityn === 'N' && new Date(a.expiredate) > Date.now();
+    const currentDate = Date.now();
+
+    return assignments.filter((a) => {
+        if (new Date(a.startDate) > currentDate) return false;
+        if (new Date(a.expiredate) < currentDate) return false;
+        return a.submityn === 'Y';
+    });
+}
+
+const filterUnwatchedOnlineClass = (onlineClassList) => {
+    const currentDate = Date.now();
+
+    return onlineClassList.filter((a) => {
+        if (new Date(a.endDate) < currentDate) return false;
+        if (new Date(a.startDate) > currentDate) return false;
+        return a.totRcognTime !== a.totAchivTime;
+    });
+}
+
+const sectionHTML = (title, itemToHTML) => `<b>${title}</b><ul>${itemToHTML}</ul>`;
+
+function itemsToHTML(items, mapping) {
+	return items.map(item => {
+		const subject = item[mapping.subjectName];
+		const title = item[mapping.title];
+		const start = item[mapping.startDate].split(' ')[0];
+		const end = item[mapping.endDate].split(' ')[0];
+		const remain = getRemainingDays(item[mapping.endDate]);
+		return `<li>
+			<strong>[${subject}]</strong> <span>${title}</span><br>
+			<div>기한: ${start} ~ ${end}</div>
+			<div>남은 시간: ${remain}</div>
+		</li>`;
+	}).join('');
+}
+
+const formatHTML = (assignments, onelineClassList) => {
+	const assignmentsHTML = itemsToHTML(assignments, {
+		subjectName: 'subjectName',
+		title: 'title',
+		startDate: 'startdate',
+		endDate: 'expiredate'
 	});
-};
-const formatUnsubmittedText = (assignments) => {
-	if (!assignments.length) return '';
-	const items = assignments
-		.filter((a) => a.submityn === 'N')
-		.map(
-			(a) =>
-				`<li>
-				<strong>[${a.subjectName}]</strong> <span>${a.title}</span><br>
-				<div>기한: ${a.startdate.split(' ')[0]} ~ ${a.expiredate.split(' ')[0]}</div>
-                <div>남은 시간: ${getRemainingDays(a.expiredate)}</div>
-			</li>`,
-		)
-		.join('');
+	const onelineClassListHTML = itemsToHTML(onelineClassList, {
+		subjectName: 'subjectName',
+		title: 'title',
+		startDate: 'startDate',
+		endDate: 'endDate'
+    });
+
 	return `
-		<b>아직 제출하지 않은 과제 목록입니다.</b>
-		<ul>
-			${items}
-		</ul>
+        ${sectionHTML('아직 제출하지 않은 과제 목록입니다.', assignmentsHTML)}
+        ${sectionHTML('아직 시청하지 않은 인강 목록입니다.', onelineClassListHTML)}
 		<p style="color:#d32f2f;">⏰ 제출 기한을 꼭 확인해주세요!</p>
 	`;
 };
@@ -109,7 +173,7 @@ const sendGmail = (to, subject, text) => {
 		service: process.env.EMAIL_SERVICE,
 		port: 587,
 		secure: false,
-        auth: {
+		auth: {
 			user: process.env.EMAIL_USER,
 			pass: process.env.EMAIL_PASS,
 		},
@@ -138,11 +202,19 @@ const sendGmail = (to, subject, text) => {
 		const unsubmittedAssignments =
 			filterUnsubmittedAssignments(assignments);
 
-		if (unsubmittedAssignments.length > 0) {
+		const onlineClassList = await fetchOnlineClassList(
+			page,
+			subjects.subjList,
+			subjects.value,
+		);
+		const unwatchedOnlineClass =
+			filterUnwatchedOnlineClass(onlineClassList);
+
+		if (unsubmittedAssignments.length > 0 || unwatchedOnlineClass.length > 0) {
 			await sendGmail(
 				process.env.EMAIL_USER,
 				'[대학교 과제] 미완료된 과제 알림',
-				formatUnsubmittedText(unsubmittedAssignments),
+				formatHTML(unsubmittedAssignments, unwatchedOnlineClass),
 			);
 		}
 	} finally {
