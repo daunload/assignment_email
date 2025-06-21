@@ -1,6 +1,10 @@
 {
 	"scripts": {
-		"start": "node ./index.js"
+		"start": "node ./index.js",
+		"lint": "biome lint --write",
+		"format": "biome format --write",
+		"check": "biome check --write",
+		"reporter": "biome check --reporter=summary"
 	},
 	"dependencies": {
 		"dotenv": "^16.5.0",
