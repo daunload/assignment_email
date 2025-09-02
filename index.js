@@ -2,6 +2,8 @@ require('dotenv').config();
 const puppeteer = require('puppeteer');
 const nodemailer = require('nodemailer');
 
+// 1
+
 /** 로그인 */
 const loginAndNavigate = async (page) => {
 	await page.goto(process.env.DOMAIN_URL);
