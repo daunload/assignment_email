@@ -60,7 +60,7 @@ const fetchAssignments = async (page, subjectList, year) => {
 			return results.flat();
 		},
 		subjectList,
-		year
+		year,
 	);
 };
 
@@ -70,18 +70,22 @@ const fetchOnlineClassList = async (page, subjectList, year) => {
 		async (subjects, year) => {
 			const results = await Promise.all(
 				subjects.map(async (subject) => {
-					const res = await fetch('/std/lis/evltn/SelectOnlineCntntsStdList.do', {
-						method: 'POST',
-						headers: {
-							'Content-Type': 'application/json;charset=UTF-8',
+					const res = await fetch(
+						'/std/lis/evltn/SelectOnlineCntntsStdList.do',
+						{
+							method: 'POST',
+							headers: {
+								'Content-Type':
+									'application/json;charset=UTF-8',
+							},
+							body: JSON.stringify({
+								selectSubj: subject.value,
+								selectYearhakgi: year,
+								selectChangeYn: 'Y',
+							}),
+							credentials: 'same-origin',
 						},
-						body: JSON.stringify({
-							selectSubj: subject.value,
-							selectYearhakgi: year,
-							selectChangeYn: 'Y',
-						}),
-						credentials: 'same-origin',
-					});
+					);
 					const data = await res.json();
 					return data.map((a) => ({
 						...a,
@@ -92,7 +96,7 @@ const fetchOnlineClassList = async (page, subjectList, year) => {
 			return results.flat();
 		},
 		subjectList,
-		year
+		year,
 	);
 };
 
@@ -108,40 +112,43 @@ const getRemainingDays = (expireDate) => {
 };
 
 const filterUnsubmittedAssignments = (assignments) => {
-    const currentDate = Date.now();
+	const currentDate = Date.now();
 
-    return assignments.filter((a) => {
-        if (new Date(a.startDate) > currentDate) return false;
-        if (new Date(a.expiredate) < currentDate) return false;
-        return a.submityn === 'Y';
-    });
-}
+	return assignments.filter((a) => {
+		if (new Date(a.startDate) > currentDate) return false;
+		if (new Date(a.expiredate) < currentDate) return false;
+		return a.submityn === 'Y';
+	});
+};
 
 const filterUnwatchedOnlineClass = (onlineClassList) => {
-    const currentDate = Date.now();
+	const currentDate = Date.now();
 
-    return onlineClassList.filter((a) => {
-        if (new Date(a.endDate) < currentDate) return false;
-        if (new Date(a.startDate) > currentDate) return false;
-        return a.totRcognTime !== a.totAchivTime;
-    });
-}
+	return onlineClassList.filter((a) => {
+		if (new Date(a.endDate) < currentDate) return false;
+		if (new Date(a.startDate) > currentDate) return false;
+		return a.totRcognTime !== a.totAchivTime;
+	});
+};
 
-const sectionHTML = (title, itemToHTML) => `<b>${title}</b><ul>${itemToHTML}</ul>`;
+const sectionHTML = (title, itemToHTML) =>
+	`<b>${title}</b><ul>${itemToHTML}</ul>`;
 
 function itemsToHTML(items, mapping) {
-	return items.map(item => {
-		const subject = item[mapping.subjectName];
-		const title = item[mapping.title];
-		const start = item[mapping.startDate].split(' ')[0];
-		const end = item[mapping.endDate].split(' ')[0];
-		const remain = getRemainingDays(item[mapping.endDate]);
-		return `<li>
+	return items
+		.map((item) => {
+			const subject = item[mapping.subjectName];
+			const title = item[mapping.title];
+			const start = item[mapping.startDate].split(' ')[0];
+			const end = item[mapping.endDate].split(' ')[0];
+			const remain = getRemainingDays(item[mapping.endDate]);
+			return `<li>
 			<strong>[${subject}]</strong> <span>${title}</span><br>
 			<div>기한: ${start} ~ ${end}</div>
 			<div>남은 시간: ${remain}</div>
 		</li>`;
-	}).join('');
+		})
+		.join('');
 }
 
 const formatHTML = (assignments, onelineClassList) => {
@@ -149,14 +156,14 @@ const formatHTML = (assignments, onelineClassList) => {
 		subjectName: 'subjectName',
 		title: 'title',
 		startDate: 'startdate',
-		endDate: 'expiredate'
+		endDate: 'expiredate',
 	});
 	const onelineClassListHTML = itemsToHTML(onelineClassList, {
 		subjectName: 'subjectName',
 		title: 'title',
 		startDate: 'startDate',
-		endDate: 'endDate'
-    });
+		endDate: 'endDate',
+	});
 
 	return `
         ${sectionHTML('아직 제출하지 않은 과제 목록입니다.', assignmentsHTML)}
@@ -209,7 +216,10 @@ const sendGmail = (to, subject, text) => {
 		const unwatchedOnlineClass =
 			filterUnwatchedOnlineClass(onlineClassList);
 
-		if (unsubmittedAssignments.length > 0 || unwatchedOnlineClass.length > 0) {
+		if (
+			unsubmittedAssignments.length > 0 ||
+			unwatchedOnlineClass.length > 0
+		) {
 			await sendGmail(
 				process.env.EMAIL_USER,
 				'[대학교 과제] 미완료된 과제 알림',
