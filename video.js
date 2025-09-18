@@ -23,32 +23,47 @@ const loginAndNavigate = async (page) => {
 };
 
 const searchYearHakgi = async (page) => {
-    return await page.evaluate(async () => {
-        const res = await fetch('StdHome.do', {
-            method: 'POST',
+	return await page.evaluate(async () => {
+		const res = await fetch('StdHome.do', {
+			method: 'POST',
 			headers: { 'Content-Type': 'application/json;charset=UTF-8' },
-			body: JSON.stringify({'searchYearhakgi': null}),
+			body: JSON.stringify({ searchYearhakgi: null }),
 			credentials: 'same-origin',
-        });
-        return res.json()
-    })
-}
+		});
+		return res.json();
+	});
+};
 
-const onlineContentList = async (page, selectSubj, selectYearhakgi, selectChangeYn) => {
-    return await page.evaluate(async (selectSubj, selectYearhakgi, selectChangeYn) => {
-        const res = await fetch('/std/lis/evltn/SelectOnlineCntntsStdList.do', {
-            method: 'POST',
-			headers: { 'Content-Type': 'application/json;charset=UTF-8' },
-            body: JSON.stringify({
-                'selectSubj': selectSubj,
-                'selectYearhakgi': selectYearhakgi,
-                'selectChangeYn': selectChangeYn
-            }),
-			credentials: 'same-origin',
-        });
-        return res.json();
-    }, selectSubj, selectYearhakgi, selectChangeYn)
-}
+const onlineContentList = async (
+	page,
+	selectSubj,
+	selectYearhakgi,
+	selectChangeYn,
+) => {
+	return await page.evaluate(
+		async (selectSubj, selectYearhakgi, selectChangeYn) => {
+			const res = await fetch(
+				'/std/lis/evltn/SelectOnlineCntntsStdList.do',
+				{
+					method: 'POST',
+					headers: {
+						'Content-Type': 'application/json;charset=UTF-8',
+					},
+					body: JSON.stringify({
+						selectSubj: selectSubj,
+						selectYearhakgi: selectYearhakgi,
+						selectChangeYn: selectChangeYn,
+					}),
+					credentials: 'same-origin',
+				},
+			);
+			return res.json();
+		},
+		selectSubj,
+		selectYearhakgi,
+		selectChangeYn,
+	);
+};
 
 const downloadsDir = path.join(__dirname, 'downloads');
 const convertedDir = path.join(__dirname, 'converted_mp3s');
@@ -123,80 +138,93 @@ const runMacro = async (videoUrlList) => {
 
 let selectedIndex = 0;
 const selectOption = (options) => {
-    return new Promise((resolve) => {
-        readline.emitKeypressEvents(process.stdin);
-        if (process.stdin.isTTY) {
-            process.stdin.setRawMode(true);
-        }
+	return new Promise((resolve) => {
+		readline.emitKeypressEvents(process.stdin);
+		if (process.stdin.isTTY) {
+			process.stdin.setRawMode(true);
+		}
 
-        let isFirstDraw = true;
-        const drawUI = () => {
-            if (!isFirstDraw) {
-                process.stdout.write(`\x1B[${options.length}A`);
-                process.stdout.write('\x1B[J');
-            }
-            isFirstDraw = false;
+		let isFirstDraw = true;
+		const drawUI = () => {
+			if (!isFirstDraw) {
+				process.stdout.write(`\x1B[${options.length}A`);
+				process.stdout.write('\x1B[J');
+			}
+			isFirstDraw = false;
 
-            process.stdout.write('\x1B[?25l');
+			process.stdout.write('\x1B[?25l');
 
-            options.forEach((option, index) => {
-                const prefix = (index === selectedIndex) ? '❯ ' : '  ';
-                const color = (index === selectedIndex) ? '\x1B[36m' : '\x1B[0m'; // Cyan for selected
-                const line = `${prefix}${color}${option}\x1B[0m\n`;
-                process.stdout.write(line);
-            });
-        };
+			options.forEach((option, index) => {
+				const prefix = index === selectedIndex ? '❯ ' : '  ';
+				const color = index === selectedIndex ? '\x1B[36m' : '\x1B[0m'; // Cyan for selected
+				const line = `${prefix}${color}${option}\x1B[0m\n`;
+				process.stdout.write(line);
+			});
+		};
 
-        process.stdin.on('keypress', (str, key) => {
-            if (key.name === 'up' && selectedIndex > 0) {
-                selectedIndex--;
-            } else if (key.name === 'down' && selectedIndex < options.length - 1) {
-                selectedIndex++;
-            } else if (key.name === 'return') {
-                process.stdin.setRawMode(false);
-                process.stdout.write('\x1B[?25h');
-                process.stdout.write('\n');
-                resolve(options[selectedIndex]);
-            }
-            
-            if (key.sequence === '\u0003') {
-                process.stdin.setRawMode(false);
-                process.stdout.write('\x1B[?25h');
-                process.stdout.write('\n');
-                process.exit();
-            }
+		process.stdin.on('keypress', (str, key) => {
+			if (key.name === 'up' && selectedIndex > 0) {
+				selectedIndex--;
+			} else if (
+				key.name === 'down' &&
+				selectedIndex < options.length - 1
+			) {
+				selectedIndex++;
+			} else if (key.name === 'return') {
+				process.stdin.setRawMode(false);
+				process.stdout.write('\x1B[?25h');
+				process.stdout.write('\n');
+				resolve(options[selectedIndex]);
+			}
 
-            drawUI();
-        });
+			if (key.sequence === '\u0003') {
+				process.stdin.setRawMode(false);
+				process.stdout.write('\x1B[?25h');
+				process.stdout.write('\n');
+				process.exit();
+			}
 
-        drawUI();
-    });
+			drawUI();
+		});
+
+		drawUI();
+	});
 };
 
-
 (async () => {
-    const browser = await puppeteer.launch({ headless: true });
-    const page = await browser.newPage();
+	const browser = await puppeteer.launch({ headless: true });
+	const page = await browser.newPage();
 
-    try {
-        await loginAndNavigate(page);
-        const yearHakgi = await searchYearHakgi(page);
-        const atnlcSbjectList = yearHakgi.atnlcSbjectList;
+	try {
+		await loginAndNavigate(page);
+		const yearHakgi = await searchYearHakgi(page);
+		const atnlcSbjectList = yearHakgi.atnlcSbjectList;
 
-        const subjects = atnlcSbjectList.map((sbj) => sbj.subjNm);
-        const selectedOption = await selectOption(subjects);
+		const subjects = atnlcSbjectList.map((sbj) => sbj.subjNm);
+		const selectedOption = await selectOption(subjects);
 
-        const selectedSubj = atnlcSbjectList.find((sbj) => sbj.subjNm === selectedOption);
+		const selectedSubj = atnlcSbjectList.find(
+			(sbj) => sbj.subjNm === selectedOption,
+		);
 
-        const onlineContents = await onlineContentList(page, selectedSubj.subj, selectedSubj.yearhakgi, 'Y')
-        
-        const videoIdList = onlineContents.map((content) => content.starting.split('/').pop());
+		const onlineContents = await onlineContentList(
+			page,
+			selectedSubj.subj,
+			selectedSubj.yearhakgi,
+			'Y',
+		);
 
-        const videoUrlList = videoIdList.map((id) => `https://kwcommons.kw.ac.kr/contents5/KW10000001/${id}/contents/media_files/screen.mp4`)
-        await runMacro(videoUrlList);
-    } finally {
-        await browser.close();
-        process.exit();
-    }
+		const videoIdList = onlineContents.map((content) =>
+			content.starting.split('/').pop(),
+		);
+
+		const videoUrlList = videoIdList.map(
+			(id) =>
+				`https://kwcommons.kw.ac.kr/contents5/KW10000001/${id}/contents/media_files/screen.mp4`,
+		);
+		await runMacro(videoUrlList);
+	} finally {
+		await browser.close();
+		process.exit();
+	}
 })();
-
