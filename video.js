@@ -1,29 +1,57 @@
+require('dotenv').config();
+
 const fs = require('fs');
 const path = require('path');
+const readline = require('readline');
+const puppeteer = require('puppeteer');
 const { pipeline } = require('stream/promises');
 const ffmpeg = require('fluent-ffmpeg');
 
-// 다운로드할 동영상 URL
-// https://kwcommons.kw.ac.kr/contents5/KW10000001/66daee175a942/contents/media_files/screen.mp4
-const videoUrlList = [
-	'https://kwcommons.kw.ac.kr/contents5/KW10000001/66daee175a942/contents/media_files/screen.mp4',
-	'https://kwcommons.kw.ac.kr/contents5/KW10000001/66dafc045f2aa/contents/media_files/screen.mp4',
-	'https://kwcommons.kw.ac.kr/contents5/KW10000001/66e409ee2da79/contents/media_files/screen.mp4',
-	'https://kwcommons.kw.ac.kr/contents5/KW10000001/66e417182c29e/contents/media_files/screen.mp4',
-	'https://kwcommons.kw.ac.kr/contents5/KW10000001/66ed25326ced1/contents/media_files/screen.mp4',
-	'https://kwcommons.kw.ac.kr/contents5/KW10000001/66ed33617c147/contents/media_files/screen.mp4',
-	'https://kwcommons.kw.ac.kr/contents5/KW10000001/66f627c7c4422/contents/media_files/screen.mp4',
-	'https://kwcommons.kw.ac.kr/contents5/KW10000001/66f6377d59c10/contents/media_files/screen.mp4',
-	'https://kwcommons.kw.ac.kr/contents5/KW10000001/66fe7e505c935/contents/media_files/screen.mp4',
-	'https://kwcommons.kw.ac.kr/contents5/KW10000001/66fe8e84528bb/contents/media_files/screen.mp4',
-	'https://kwcommons.kw.ac.kr/contents5/KW10000001/670630c6767f5/contents/media_files/screen.mp4',
-	'https://kwcommons.kw.ac.kr/contents5/KW10000001/67063cf898d8b/contents/media_files/screen.mp4',
-	'https://kwcommons.kw.ac.kr/contents5/KW10000001/6712274e7f895/contents/media_files/screen.mp4',
-	'https://kwcommons.kw.ac.kr/contents5/KW10000001/6712318f18696/contents/media_files/screen.mp4',
-];
+/** 로그인 */
+const loginAndNavigate = async (page) => {
+	await page.goto(process.env.DOMAIN_URL);
+	await page.type('#loginId', process.env.LOGIN_ID);
+	await page.type('#loginPwd', process.env.LOGIN_PASSWORD);
+
+	await Promise.all([
+		page.click('button[type="submit"]'),
+		page.waitForFunction(
+			() => location.pathname === '/std/cmn/frame/Frame.do',
+			{ timeout: 30000 },
+		),
+	]);
+};
+
+const searchYearHakgi = async (page) => {
+    return await page.evaluate(async () => {
+        const res = await fetch('StdHome.do', {
+            method: 'POST',
+			headers: { 'Content-Type': 'application/json;charset=UTF-8' },
+			body: JSON.stringify({'searchYearhakgi': null}),
+			credentials: 'same-origin',
+        });
+        return res.json()
+    })
+}
+
+const onlineContentList = async (page, selectSubj, selectYearhakgi, selectChangeYn) => {
+    return await page.evaluate(async (selectSubj, selectYearhakgi, selectChangeYn) => {
+        const res = await fetch('/std/lis/evltn/SelectOnlineCntntsStdList.do', {
+            method: 'POST',
+			headers: { 'Content-Type': 'application/json;charset=UTF-8' },
+            body: JSON.stringify({
+                'selectSubj': selectSubj,
+                'selectYearhakgi': selectYearhakgi,
+                'selectChangeYn': selectChangeYn
+            }),
+			credentials: 'same-origin',
+        });
+        return res.json();
+    }, selectSubj, selectYearhakgi, selectChangeYn)
+}
+
 const downloadsDir = path.join(__dirname, 'downloads');
 const convertedDir = path.join(__dirname, 'converted_mp3s');
-// --- 설정 끝 ---
 
 // 1단계: 동영상 다운로드 함수
 const downloadVideo = async (videoUrl, index) => {
@@ -64,9 +92,7 @@ const convertToMp3 = (filePath) => {
 	});
 };
 
-// 메인 실행 로직
-const main = async () => {
-	// --- 1단계: 모든 동영상 동시 다운로드 ---
+const runMacro = async (videoUrlList) => {
 	console.log('--- 1단계: 동영상 다운로드 시작 ---');
 	if (!fs.existsSync(downloadsDir)) fs.mkdirSync(downloadsDir);
 
@@ -95,4 +121,82 @@ const main = async () => {
 	console.log('\n모든 작업이 완료되었습니다.');
 };
 
-main();
+let selectedIndex = 0;
+const selectOption = (options) => {
+    return new Promise((resolve) => {
+        readline.emitKeypressEvents(process.stdin);
+        if (process.stdin.isTTY) {
+            process.stdin.setRawMode(true);
+        }
+
+        let isFirstDraw = true;
+        const drawUI = () => {
+            if (!isFirstDraw) {
+                process.stdout.write(`\x1B[${options.length}A`);
+                process.stdout.write('\x1B[J');
+            }
+            isFirstDraw = false;
+
+            process.stdout.write('\x1B[?25l');
+
+            options.forEach((option, index) => {
+                const prefix = (index === selectedIndex) ? '❯ ' : '  ';
+                const color = (index === selectedIndex) ? '\x1B[36m' : '\x1B[0m'; // Cyan for selected
+                const line = `${prefix}${color}${option}\x1B[0m\n`;
+                process.stdout.write(line);
+            });
+        };
+
+        process.stdin.on('keypress', (str, key) => {
+            if (key.name === 'up' && selectedIndex > 0) {
+                selectedIndex--;
+            } else if (key.name === 'down' && selectedIndex < options.length - 1) {
+                selectedIndex++;
+            } else if (key.name === 'return') {
+                process.stdin.setRawMode(false);
+                process.stdout.write('\x1B[?25h');
+                process.stdout.write('\n');
+                resolve(options[selectedIndex]);
+            }
+            
+            if (key.sequence === '\u0003') {
+                process.stdin.setRawMode(false);
+                process.stdout.write('\x1B[?25h');
+                process.stdout.write('\n');
+                process.exit();
+            }
+
+            drawUI();
+        });
+
+        drawUI();
+    });
+};
+
+
+(async () => {
+    const browser = await puppeteer.launch({ headless: true });
+    const page = await browser.newPage();
+
+    try {
+        await loginAndNavigate(page);
+        const yearHakgi = await searchYearHakgi(page);
+        const atnlcSbjectList = yearHakgi.atnlcSbjectList;
+
+        const subjects = atnlcSbjectList.map((sbj) => sbj.subjNm);
+        const selectedOption = await selectOption(subjects);
+
+        const selectedSubj = atnlcSbjectList.find((sbj) => sbj.subjNm === selectedOption);
+
+        const onlineContents = await onlineContentList(page, selectedSubj.subj, selectedSubj.yearhakgi, 'Y')
+        
+        const videoIdList = onlineContents.map((content) => content.starting.split('/').pop());
+
+        const videoUrlList = videoIdList.map((id) => `https://kwcommons.kw.ac.kr/contents5/KW10000001/${id}/contents/media_files/screen.mp4`)
+        await runMacro(videoUrlList);
+    } finally {
+        await browser.close();
+        process.exit();
+    }
+})();
+
